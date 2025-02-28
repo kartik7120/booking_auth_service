@@ -8,3 +8,4 @@
 - [] Create a Login User func
 - [] Create a logout function
 - [] add login option via google and github
+- [] Add logs using the logger service
