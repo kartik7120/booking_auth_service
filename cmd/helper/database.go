@@ -44,23 +44,23 @@ func ConnectToDB() (*sql.DB, error) {
 			return nil, err
 		}
 
-		log.Println("Backingoff for 2 seconds...")
+		log.Println("Backing off for 2 seconds...")
 		time.Sleep(time.Second * 2)
 		continue
 	}
 }
 
-func (d *DBConfig) SelectDB(queryString string) (sql.Result, error) {
-	result, err := d.Conn.Exec(queryString)
+func (d *DBConfig) SelectDB(queryString string, args ...interface{}) (*sql.Rows, error) {
+	rows, err := d.Conn.Query(queryString, args...)
 	if err != nil {
 		return nil, err
 	}
 
-	return result, nil
+	return rows, nil
 }
 
-func (d *DBConfig) InsertDB(queryString string) (sql.Result, error) {
-	result, err := d.Conn.Exec(queryString)
+func (d *DBConfig) InsertDB(queryString string, args ...interface{}) (sql.Result, error) {
+	result, err := d.Conn.Exec(queryString, args...)
 	if err != nil {
 		return nil, err
 	}
