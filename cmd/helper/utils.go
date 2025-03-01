@@ -1,13 +1,27 @@
 package helper
 
-import "math/rand"
+import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 
-func GenerateRandomNumberString(length int) string {
-	// rand.Seed(time.Now().UnixNano())
-	numbers := "0123456789"
-	result := make([]byte, length)
-	for i := range result {
-		result[i] = numbers[rand.Intn(len(numbers))]
+	"golang.org/x/crypto/bcrypt"
+)
+
+func GenerateEcdsaKey() (*ecdsa.PrivateKey, error) {
+	// Generate a new ecdsa key
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, err
 	}
-	return string(result)
+	return key, nil
+}
+
+func HashPassword(password string) ([]byte, error) {
+	// Hash the password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+	return hashedPassword, nil
 }
