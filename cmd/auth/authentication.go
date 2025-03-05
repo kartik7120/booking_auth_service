@@ -270,3 +270,32 @@ func (a *Authentication) SendResetPasswordMail(email string) error {
 
 	return nil
 }
+
+func (a *Authentication) ResetPassword(user models.User, newPassword string) error {
+
+	// validate newPassword string
+
+	err := validate.Var(newPassword, "alphanum")
+
+	if err != nil {
+		return err
+	}
+
+	// hash the newPassword string
+
+	hashedPassword, err := helper.HashPassword(newPassword)
+
+	if err != nil {
+		return err
+	}
+
+	// update the password field of the user in the database
+
+	result := a.DB.Conn.Table("users").Where("email = ?", user.Email).Update("password", string(hashedPassword))
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
