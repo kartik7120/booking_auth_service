@@ -1,42 +1,35 @@
 package helper
 
 import (
-	"database/sql"
 	"log"
 	"os"
 	"time"
+
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type DBConfig struct {
-	Conn *sql.DB
+	Conn *gorm.DB
 }
 
-func openDB(dsn string) (*sql.DB, error) {
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		return nil, err
-	}
-
-	err = db.Ping()
-	if err != nil {
-		return nil, err
-	}
-
-	return db, nil
-}
-
-func ConnectToDB() (*sql.DB, error) {
+func ConnectToDB() (*gorm.DB, error) {
 	var count int64
 	dsn := os.Getenv("DSN")
 
 	for {
-		conn, err := openDB(dsn)
+		// conn, err := openDB(dsn)
+		db, err := gorm.Open(postgres.New(postgres.Config{
+			DSN:                  dsn,
+			PreferSimpleProtocol: true,
+		}), &gorm.Config{})
+
 		if err != nil {
 			log.Println("Postgres is not ready yet...")
 			count++
 		} else {
 			log.Println("Connected to Postgres Successfully")
-			return conn, nil
+			return db, nil
 		}
 
 		if count > 10 {
@@ -48,40 +41,4 @@ func ConnectToDB() (*sql.DB, error) {
 		time.Sleep(time.Second * 2)
 		continue
 	}
-}
-
-func (d *DBConfig) SelectDB(queryString string, args ...interface{}) (*sql.Rows, error) {
-	rows, err := d.Conn.Query(queryString, args...)
-	if err != nil {
-		return nil, err
-	}
-
-	return rows, nil
-}
-
-func (d *DBConfig) InsertDB(queryString string, args ...interface{}) (sql.Result, error) {
-	result, err := d.Conn.Exec(queryString, args...)
-	if err != nil {
-		return nil, err
-	}
-
-	return result, nil
-}
-
-func (d *DBConfig) UpdateDB(queryString string) (sql.Result, error) {
-	result, err := d.Conn.Exec(queryString)
-	if err != nil {
-		return nil, err
-	}
-
-	return result, nil
-}
-
-func (d *DBConfig) DeleteDB(queryString string) (sql.Result, error) {
-	result, err := d.Conn.Exec(queryString)
-	if err != nil {
-		return nil, err
-	}
-
-	return result, nil
 }
