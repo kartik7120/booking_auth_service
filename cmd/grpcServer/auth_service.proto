@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package auth;
+
+option go_package = "github.com/booking_auth_service/cmd/grpcServer;auth";
+
+enum Role {
+    ADMIN = 1;
+    USER = 2;
+}
+
+message User {
+    string username = 1;
+    string email = 2;
+    string password = 3;
+    Role role = 4;
+}
+
+message LoginUser {
+    string username = 1;
+    string password = 2;
+}
+
+message Response {
+    int status = 1;
+    string message = 2;
+    string token = 3;
+    string error = 4;
+}
+
+message ValidateTokenResponse {
+    bool valid = 1;
+    string error = 2;
+}
+
+service AuthService {
+    rpc Resigter (User) returns (Response);
+    rpc Login (LoginUser) returns (Response);
+    rpc ValidateToken (string) returns (ValidateTokenResponse);
+    rpc SendResetPasswordMail (string) returns (Response);
+    rpc ResetPassword (User,string) returns (Response);
+}
