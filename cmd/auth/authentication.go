@@ -11,23 +11,13 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/joho/godotenv"
 	"github.com/kartik7120/booking_auth_service/cmd/helper"
+	"github.com/kartik7120/booking_auth_service/cmd/models"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type Authentication struct {
 	timeout time.Duration
 	DB      *helper.DBConfig
-}
-
-type User struct {
-	Username string `json:"username" validate:"required,alphanum"`
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required,alphanum"`
-}
-
-type LoginUser struct {
-	Username string `json:"username" validate:"required,alphanum"`
-	Password string `json:"password" validate:"required,alphanum"`
 }
 
 var validate *validator.Validate
@@ -45,7 +35,7 @@ func NewAuthentication(timeout time.Duration) *Authentication {
 	}
 }
 
-func (a *Authentication) Register(user User) (string, error) {
+func (a *Authentication) Register(user models.User) (string, error) {
 
 	err := godotenv.Load()
 
@@ -66,21 +56,19 @@ func (a *Authentication) Register(user User) (string, error) {
 
 	// Check if a user with the same username is present in the database
 
-	queryString := "SELECT * FROM users WHERE username = ?"
+	result := a.DB.Conn.Table("users").First(&models.User{
+		Username: user.Username,
+	})
 
-	result, err := a.DB.SelectDB(queryString, user.Username)
-
-	if err != nil {
-		return "", err
+	if result.Error != nil {
+		return "",
+			result.Error
 	}
 
-	cols, err := result.Columns()
+	// extract columns from the result
+	_, ok := result.Get("username")
 
-	if err != nil {
-		return "", err
-	}
-
-	if len(cols) > 0 {
+	if ok {
 		errString := "user with the same username already exists"
 		return "", errors.New(errString)
 	}
@@ -118,18 +106,21 @@ func (a *Authentication) Register(user User) (string, error) {
 
 	// Add user to the database
 
-	queryString = "INSERT INTO users (username, email, password) VALUES (?, ?, ?)"
+	result = a.DB.Conn.Table("users").Create(&models.User{
+		Username: user.Username,
+		Email:    user.Email,
+		Password: string(hashedPassword),
+		Role:     "USER",
+	})
 
-	_, err = a.DB.InsertDB(queryString, user.Username, user.Email, hashedPassword)
-
-	if err != nil {
-		return "", err
+	if result.Error != nil {
+		return "", result.Error
 	}
 
 	return s, err
 }
 
-func (a *Authentication) Login(user LoginUser) (string, error) {
+func (a *Authentication) Login(user models.LoginUser) (string, error) {
 
 	err := godotenv.Load()
 
@@ -150,22 +141,29 @@ func (a *Authentication) Login(user LoginUser) (string, error) {
 
 	// Check if a user with the same username is present in the database
 
-	queryString := "SELECT * FROM users WHERE username = ?"
+	result := a.DB.Conn.Table("users").First(&models.User{
+		Username: user.Username,
+	})
 
-	result, err := a.DB.SelectDB(queryString, user.Username)
-
-	if err != nil {
-		return "", err
+	if result.Error != nil {
+		return "", result.Error
 	}
 
-	cols, err := result.Columns()
+	// Get user
 
-	if err != nil {
-		return "", err
-	}
+	password, ok := result.Get("password")
 
-	if len(cols) == 0 {
+	if !ok {
 		errString := "user does not exist"
+		return "", errors.New(errString)
+	}
+
+	// convert password from interface{} to string
+
+	password, ok = password.(string)
+
+	if !ok {
+		errString := "password is not a string"
 		return "", errors.New(errString)
 	}
 
@@ -173,9 +171,7 @@ func (a *Authentication) Login(user LoginUser) (string, error) {
 
 	// if the password does not match then return an error message
 
-	password := "" // extract password from the result
-
-	err = bcrypt.CompareHashAndPassword([]byte(password), []byte(user.Password))
+	err = bcrypt.CompareHashAndPassword([]byte(password.(string)), []byte(user.Password))
 
 	if err != nil {
 		errString := "password does not match"
@@ -208,4 +204,69 @@ func (a *Authentication) Login(user LoginUser) (string, error) {
 	}
 
 	return s, nil
+}
+
+func (a *Authentication) ValidateToken(token string) (bool, error) {
+
+	keyBase64 := os.Getenv("JWT_KEY_BASE64")
+
+	keyBytes, err := base64.StdEncoding.DecodeString(keyBase64)
+
+	if err != nil {
+		return false, err
+	}
+
+	key = keyBytes
+
+	t, err := jwt.ParseWithClaims(token, jwt.MapClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return key, nil
+	}, jwt.WithAudience("auth-service"), jwt.WithIssuer("auth-service"), jwt.WithSubject("user"), jwt.WithExpirationRequired())
+
+	if err != nil {
+		return false, err
+	}
+
+	if t.Valid {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func (a *Authentication) SendResetPasswordMail(email string) error {
+
+	// check if the email is valid
+
+	err := validate.Var(email, "email")
+
+	if err != nil {
+		return err
+	}
+
+	// check if the email is present in the database
+
+	result := a.DB.Conn.Table("users").First(&models.User{
+		Email: email,
+	})
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	// send the user a email with a link to reset the password
+
+	err = helper.SendMail(
+		email,
+		"Reset Password",
+		"Please click on the link to reset your password",
+		"",
+		"reset-password",
+		"Reset Password",
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
