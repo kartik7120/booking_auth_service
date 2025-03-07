@@ -10,14 +10,23 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
+	"github.com/joho/godotenv"
 	auth "github.com/kartik7120/booking_auth_service/cmd/grpcServer"
 	"github.com/kartik7120/booking_auth_service/cmd/grpcServer/server"
 )
 
 func main() {
+	err := godotenv.Load()
+
+	if err != nil {
+		fmt.Println("Error loading .env file")
+		panic(err)
+	}
+
 	lis, err := net.Listen("tcp", ":1101")
 
 	if err != nil {
+		fmt.Println("Error starting the server")
 		panic(err)
 	}
 
@@ -37,6 +46,7 @@ func main() {
 	go func() {
 		fmt.Println("Auth Service started")
 		if err := grpcServer.Serve(lis); err != nil {
+			fmt.Println("Error starting the server")
 			panic(err)
 		}
 	}()
