@@ -5,8 +5,8 @@ package auth;
 option go_package = "github.com/booking_auth_service/cmd/grpcServer;auth";
 
 enum Role {
-    ADMIN = 1;
-    USER = 2;
+    ADMIN = 0;
+    USER = 1;
 }
 
 message User {
@@ -22,7 +22,7 @@ message LoginUser {
 }
 
 message Response {
-    int status = 1;
+    int32 status = 1;
     string message = 2;
     string token = 3;
     string error = 4;
@@ -31,12 +31,26 @@ message Response {
 message ValidateTokenResponse {
     bool valid = 1;
     string error = 2;
+    int32 status = 3;
+}
+
+message ValdateTokenRequest {
+    string token = 1;
+}
+
+message ResetPasswordRequest {
+    User user = 1;
+    string newPassword = 2;
+}
+
+message SendResetPasswordMailRequest {
+    string email = 1;
 }
 
 service AuthService {
     rpc Resigter (User) returns (Response);
     rpc Login (LoginUser) returns (Response);
-    rpc ValidateToken (string) returns (ValidateTokenResponse);
-    rpc SendResetPasswordMail (string) returns (Response);
-    rpc ResetPassword (User,string) returns (Response);
+    rpc ValidateToken (ValdateTokenRequest) returns (ValidateTokenResponse);
+    rpc SendResetPasswordMail (SendResetPasswordMailRequest) returns (Response);
+    rpc ResetPassword (ResetPasswordRequest) returns (Response);
 }
