@@ -43,7 +43,7 @@ func (a *Authentication) Register(user models.User) (string, int, error) {
 		return "", 500, err
 	}
 
-	err = validate.Struct(user)
+	err = validate.Struct(&user)
 
 	if err != nil {
 		return "", 400, err
@@ -128,7 +128,7 @@ func (a *Authentication) Login(user models.LoginUser) (string, int, error) {
 		return "", 500, err
 	}
 
-	err = validate.Struct(user)
+	err = validate.Struct(&user)
 
 	if err != nil {
 		return "", 400, err
@@ -237,7 +237,7 @@ func (a *Authentication) SendResetPasswordMail(email string) (int, error) {
 
 	// check if the email is valid
 
-	err := validate.Var(email, "email")
+	err := validate.Var(&email, "email")
 
 	if err != nil {
 		return 400, err
@@ -275,7 +275,7 @@ func (a *Authentication) ResetPassword(user models.User, newPassword string) (in
 
 	// validate newPassword string
 
-	err := validate.Var(newPassword, "alphanum")
+	err := validate.Var(&newPassword, "alphanum")
 
 	if err != nil {
 		return 400, err
