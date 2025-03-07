@@ -35,23 +35,23 @@ func NewAuthentication(timeout time.Duration) *Authentication {
 	}
 }
 
-func (a *Authentication) Register(user models.User) (string, error) {
+func (a *Authentication) Register(user models.User) (string, int, error) {
 
 	err := godotenv.Load()
 
 	if err != nil {
-		return "", err
+		return "", 500, err
 	}
 
 	err = validate.Struct(user)
 
 	if err != nil {
-		return "", err
+		return "", 400, err
 	}
 
 	if user.Username == "" || user.Email == "" || user.Password == "" {
 		errString := "username, email and password are required fields"
-		return "", errors.New(errString)
+		return "", 400, errors.New(errString)
 	}
 
 	// Check if a user with the same username is present in the database
@@ -61,7 +61,7 @@ func (a *Authentication) Register(user models.User) (string, error) {
 	})
 
 	if result.Error != nil {
-		return "",
+		return "", 500,
 			result.Error
 	}
 
@@ -70,7 +70,7 @@ func (a *Authentication) Register(user models.User) (string, error) {
 
 	if ok {
 		errString := "user with the same username already exists"
-		return "", errors.New(errString)
+		return "", 403, errors.New(errString)
 	}
 
 	// if user is present then sent an error message that user cannot be created as a user with the same username already exists
@@ -78,7 +78,7 @@ func (a *Authentication) Register(user models.User) (string, error) {
 	keyBase64 := os.Getenv("JWT_KEY_BASE64")
 	keyBytes, err := base64.StdEncoding.DecodeString(keyBase64)
 	if err != nil {
-		return "", err
+		return "", 500, err
 	}
 
 	key = keyBytes
@@ -93,7 +93,7 @@ func (a *Authentication) Register(user models.User) (string, error) {
 	s, err = t.SignedString(key)
 
 	if err != nil {
-		return "", err
+		return "", 500, err
 	}
 
 	// hash the password field of the user using bcrypt
@@ -101,7 +101,7 @@ func (a *Authentication) Register(user models.User) (string, error) {
 	hashedPassword, err := helper.HashPassword(user.Password)
 
 	if err != nil {
-		return "", err
+		return "", 500, err
 	}
 
 	// Add user to the database
@@ -114,29 +114,29 @@ func (a *Authentication) Register(user models.User) (string, error) {
 	})
 
 	if result.Error != nil {
-		return "", result.Error
+		return "", 500, result.Error
 	}
 
-	return s, err
+	return s, 200, nil
 }
 
-func (a *Authentication) Login(user models.LoginUser) (string, error) {
+func (a *Authentication) Login(user models.LoginUser) (string, int, error) {
 
 	err := godotenv.Load()
 
 	if err != nil {
-		return "", err
+		return "", 500, err
 	}
 
 	err = validate.Struct(user)
 
 	if err != nil {
-		return "", err
+		return "", 400, err
 	}
 
 	if user.Username == "" || user.Password == "" {
 		errString := "username and password are required fields"
-		return "", errors.New(errString)
+		return "", 400, errors.New(errString)
 	}
 
 	// Check if a user with the same username is present in the database
@@ -146,7 +146,7 @@ func (a *Authentication) Login(user models.LoginUser) (string, error) {
 	})
 
 	if result.Error != nil {
-		return "", result.Error
+		return "", 500, result.Error
 	}
 
 	// Get user
@@ -155,7 +155,7 @@ func (a *Authentication) Login(user models.LoginUser) (string, error) {
 
 	if !ok {
 		errString := "user does not exist"
-		return "", errors.New(errString)
+		return "", 404, errors.New(errString)
 	}
 
 	// convert password from interface{} to string
@@ -164,7 +164,7 @@ func (a *Authentication) Login(user models.LoginUser) (string, error) {
 
 	if !ok {
 		errString := "password is not a string"
-		return "", errors.New(errString)
+		return "", 500, errors.New(errString)
 	}
 
 	// extract password field from the result and compare it with the password field of the user
@@ -175,7 +175,7 @@ func (a *Authentication) Login(user models.LoginUser) (string, error) {
 
 	if err != nil {
 		errString := "password does not match"
-		return "", errors.New(errString)
+		return "", 403, errors.New(errString)
 	}
 
 	// if the password matches then generate a jwt token and return it
@@ -185,7 +185,7 @@ func (a *Authentication) Login(user models.LoginUser) (string, error) {
 	keyBytes, err := base64.StdEncoding.DecodeString(keyBase64)
 
 	if err != nil {
-		return "", err
+		return "", 500, err
 	}
 
 	key = keyBytes
@@ -200,20 +200,20 @@ func (a *Authentication) Login(user models.LoginUser) (string, error) {
 	s, err = t.SignedString(key)
 
 	if err != nil {
-		return "", err
+		return "", 500, err
 	}
 
-	return s, nil
+	return s, 200, nil
 }
 
-func (a *Authentication) ValidateToken(token string) (bool, error) {
+func (a *Authentication) ValidateToken(token string) (bool, int, error) {
 
 	keyBase64 := os.Getenv("JWT_KEY_BASE64")
 
 	keyBytes, err := base64.StdEncoding.DecodeString(keyBase64)
 
 	if err != nil {
-		return false, err
+		return false, 500, err
 	}
 
 	key = keyBytes
@@ -223,24 +223,24 @@ func (a *Authentication) ValidateToken(token string) (bool, error) {
 	}, jwt.WithAudience("auth-service"), jwt.WithIssuer("auth-service"), jwt.WithSubject("user"), jwt.WithExpirationRequired())
 
 	if err != nil {
-		return false, err
+		return false, 403, err
 	}
 
 	if t.Valid {
-		return true, nil
+		return true, 200, nil
 	}
 
-	return false, nil
+	return false, 403, nil
 }
 
-func (a *Authentication) SendResetPasswordMail(email string) error {
+func (a *Authentication) SendResetPasswordMail(email string) (int, error) {
 
 	// check if the email is valid
 
 	err := validate.Var(email, "email")
 
 	if err != nil {
-		return err
+		return 400, err
 	}
 
 	// check if the email is present in the database
@@ -250,7 +250,7 @@ func (a *Authentication) SendResetPasswordMail(email string) error {
 	})
 
 	if result.Error != nil {
-		return result.Error
+		return 500, result.Error
 	}
 
 	// send the user a email with a link to reset the password
@@ -265,20 +265,20 @@ func (a *Authentication) SendResetPasswordMail(email string) error {
 	)
 
 	if err != nil {
-		return err
+		return 500, err
 	}
 
-	return nil
+	return 200, nil
 }
 
-func (a *Authentication) ResetPassword(user models.User, newPassword string) error {
+func (a *Authentication) ResetPassword(user models.User, newPassword string) (int, error) {
 
 	// validate newPassword string
 
 	err := validate.Var(newPassword, "alphanum")
 
 	if err != nil {
-		return err
+		return 400, err
 	}
 
 	// hash the newPassword string
@@ -286,7 +286,7 @@ func (a *Authentication) ResetPassword(user models.User, newPassword string) err
 	hashedPassword, err := helper.HashPassword(newPassword)
 
 	if err != nil {
-		return err
+		return 500, err
 	}
 
 	// update the password field of the user in the database
@@ -294,8 +294,8 @@ func (a *Authentication) ResetPassword(user models.User, newPassword string) err
 	result := a.DB.Conn.Table("users").Where("email = ?", user.Email).Update("password", string(hashedPassword))
 
 	if result.Error != nil {
-		return result.Error
+		return 500, result.Error
 	}
 
-	return nil
+	return 200, nil
 }
