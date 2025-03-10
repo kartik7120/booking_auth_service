@@ -363,6 +363,17 @@ func (a *Authentication) ResetPassword(user models.User, newPassword string) (in
 		return 400, err
 	}
 
+	result := a.DB.Conn.Table("users").Where(&models.User{
+		Username: user.Username,
+		Email:    user.Email,
+	}).First(&models.User{})
+
+	if result.Error != nil && result.Error.Error() == `record not found` {
+		log.Info("User does not exist")
+		errString := "user does not exist"
+		return 404, errors.New(errString)
+	}
+
 	// hash the newPassword string
 
 	hashedPassword, err := helper.HashPassword(newPassword)
@@ -374,7 +385,9 @@ func (a *Authentication) ResetPassword(user models.User, newPassword string) (in
 
 	// update the password field of the user in the database
 
-	result := a.DB.Conn.Table("users").Where("email = ?", user.Email).Update("password", string(hashedPassword))
+	// check if the user is present in the database
+
+	result = a.DB.Conn.Table("users").Where("email = ?", user.Email).Update("password", string(hashedPassword))
 
 	if result.Error != nil {
 		log.Error("Error updating password")
