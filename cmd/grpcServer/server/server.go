@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/kartik7120/booking_auth_service/cmd/auth"
 	au "github.com/kartik7120/booking_auth_service/cmd/grpcServer"
 	"github.com/kartik7120/booking_auth_service/cmd/models"
@@ -19,6 +21,8 @@ func (a *AuthService) Resigter(ctx context.Context, in *au.User) (*au.Response, 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
+	log.Info("Starting call to register function")
+
 	if ctx.Err() != nil {
 		return &au.Response{
 			Status:  408,
@@ -33,10 +37,16 @@ func (a *AuthService) Resigter(ctx context.Context, in *au.User) (*au.Response, 
 		Password: in.Password,
 	}
 
+	log.WithFields(log.Fields{
+		"Username": user.Username,
+		"Email":    user.Email,
+	}).Info("Calling register function")
+
 	token, status, err := a.Authentication.Register(user)
 
 	if ctx.Err() == context.Canceled {
 		cancel()
+		log.Error("Time limit exceeded")
 		return &au.Response{
 			Status:  408,
 			Message: "Context was cancelled",
@@ -64,7 +74,13 @@ func (a *AuthService) Login(ctx context.Context, in *au.LoginUser) (*au.Response
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
+	log.Info("Starting call to login function")
+
 	if ctx.Err() != nil {
+		cancel()
+
+		log.Error("Context is already cancelled")
+
 		return &au.Response{
 			Status:  408,
 			Message: "Context was cancelled",
@@ -81,6 +97,9 @@ func (a *AuthService) Login(ctx context.Context, in *au.LoginUser) (*au.Response
 
 	if ctx.Err() == context.Canceled {
 		cancel()
+
+		log.Error("Time limit exceeded")
+
 		return &au.Response{
 			Status:  408,
 			Message: "Context was cancelled",
@@ -108,8 +127,13 @@ func (a *AuthService) ValidateToken(ctx context.Context, in *au.ValdateTokenRequ
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
+	log.Info("Starting call to validate token function")
+
 	if ctx.Err() != nil {
 		cancel()
+
+		log.Error("Context is already cancelled")
+
 		return &au.ValidateTokenResponse{
 			Valid:  false,
 			Error:  ctx.Err().Error(),
@@ -121,6 +145,9 @@ func (a *AuthService) ValidateToken(ctx context.Context, in *au.ValdateTokenRequ
 
 	if ctx.Err() == context.Canceled {
 		cancel()
+
+		log.Error("Time limit exceeded")
+
 		return &au.ValidateTokenResponse{
 			Valid:  false,
 			Error:  "Context was cancelled",
@@ -156,7 +183,13 @@ func (a *AuthService) SendResetPasswordMail(ctx context.Context, in *au.SendRese
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
+	log.Info("Starting call to send reset password mail function")
+
 	if ctx.Err() != nil {
+		cancel()
+
+		log.Error("Context is already cancelled")
+
 		return &au.Response{
 			Status:  408,
 			Message: "Context was cancelled",
@@ -168,6 +201,9 @@ func (a *AuthService) SendResetPasswordMail(ctx context.Context, in *au.SendRese
 
 	if ctx.Err() == context.Canceled {
 		cancel()
+
+		log.Error("Time limit exceeded")
+
 		return &au.Response{
 			Status:  408,
 			Message: "Context was cancelled",
@@ -195,7 +231,13 @@ func (a *AuthService) ResetPassword(ctx context.Context, in *au.ResetPasswordReq
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
+	log.Info("Starting call to reset password function")
+
 	if ctx.Err() != nil {
+		cancel()
+
+		log.Error("Context is already cancelled")
+
 		return &au.Response{
 			Status:  408,
 			Message: "Context was cancelled",
@@ -212,6 +254,9 @@ func (a *AuthService) ResetPassword(ctx context.Context, in *au.ResetPasswordReq
 
 	if ctx.Err() == context.Canceled {
 		cancel()
+
+		log.Error("Time limit exceeded")
+
 		return &au.Response{
 			Status:  408,
 			Message: "Context was cancelled",
