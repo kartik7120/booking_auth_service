@@ -1,10 +1,10 @@
 package helper
 
 import (
-	"log"
 	"os"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -25,19 +25,19 @@ func ConnectToDB() (*gorm.DB, error) {
 		}), &gorm.Config{})
 
 		if err != nil {
-			log.Println("Postgres is not ready yet...")
+			log.Debug("Postgres is not ready yet...")
 			count++
 		} else {
-			log.Println("Connected to Postgres Successfully")
+			log.Info("Connected to Postgres Successfully")
 			return db, nil
 		}
 
 		if count > 10 {
-			log.Println("Could not connect to Postgres")
+			log.Error("Could not connect to Postgres")
 			return nil, err
 		}
 
-		log.Println("Backing off for 2 seconds...")
+		log.Debug("Backing off for 2 seconds...")
 		time.Sleep(time.Second * 2)
 		continue
 	}
