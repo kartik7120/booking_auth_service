@@ -12,6 +12,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/kartik7120/booking_auth_service/cmd/helper"
 	"github.com/kartik7120/booking_auth_service/cmd/models"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -29,6 +30,7 @@ var (
 )
 
 func NewAuthentication(timeout time.Duration) *Authentication {
+	log.Info("Creating a new authentication instance")
 	validate = validator.New()
 	return &Authentication{
 		timeout: timeout,
@@ -37,19 +39,34 @@ func NewAuthentication(timeout time.Duration) *Authentication {
 
 func (a *Authentication) Register(user models.User) (string, int, error) {
 
+	log.Info("Registering user")
+
 	err := godotenv.Load()
 
 	if err != nil {
+		log.Error("Error loading .env file")
 		return "", 500, err
 	}
 
-	err = validate.Struct(&user)
+	u := &models.User{
+		Username: user.Username,
+		Email:    user.Email,
+		Password: user.Password,
+	}
+
+	err = validate.Struct(u)
 
 	if err != nil {
+		log.Error("Error validating user")
 		return "", 400, err
 	}
 
 	if user.Username == "" || user.Email == "" || user.Password == "" {
+		log.WithFields(log.Fields{
+			"username": user.Username,
+			"email":    user.Email,
+			"password": user.Password,
+		}).Error("username, email and password are required fields")
 		errString := "username, email and password are required fields"
 		return "", 400, errors.New(errString)
 	}
@@ -60,7 +77,22 @@ func (a *Authentication) Register(user models.User) (string, int, error) {
 		Username: user.Username,
 	})
 
-	if result.Error != nil {
+	if result.Error.Error() == `ERROR: relation "users" does not exist (SQLSTATE 42P01)` {
+		err := a.DB.Conn.Table("users").AutoMigrate(&models.User{})
+		if err != nil {
+			log.Error("Error creating table users")
+			return "", 500, err
+		}
+		log.Info("Table users created successfully")
+	}
+
+	if result.Error.Error() == `record not found` {
+		log.Info("No user with the same username found")
+	} else {
+		log.WithFields(log.Fields{
+			"username": user.Username,
+		}).Error("error checking if user exists")
+
 		return "", 500,
 			result.Error
 	}
@@ -69,6 +101,9 @@ func (a *Authentication) Register(user models.User) (string, int, error) {
 	_, ok := result.Get("username")
 
 	if ok {
+		log.WithFields(log.Fields{
+			"username": user.Username,
+		}).Error("user with the same username already exists")
 		errString := "user with the same username already exists"
 		return "", 403, errors.New(errString)
 	}
@@ -77,7 +112,9 @@ func (a *Authentication) Register(user models.User) (string, int, error) {
 
 	keyBase64 := os.Getenv("JWT_KEY_BASE64")
 	keyBytes, err := base64.StdEncoding.DecodeString(keyBase64)
+
 	if err != nil {
+		log.Error("Error decoding base64 key")
 		return "", 500, err
 	}
 
@@ -93,6 +130,7 @@ func (a *Authentication) Register(user models.User) (string, int, error) {
 	s, err = t.SignedString(key)
 
 	if err != nil {
+		log.Error("Error signing jwt token")
 		return "", 500, err
 	}
 
@@ -101,6 +139,7 @@ func (a *Authentication) Register(user models.User) (string, int, error) {
 	hashedPassword, err := helper.HashPassword(user.Password)
 
 	if err != nil {
+		log.Error("Error hashing password")
 		return "", 500, err
 	}
 
@@ -114,66 +153,87 @@ func (a *Authentication) Register(user models.User) (string, int, error) {
 	})
 
 	if result.Error != nil {
+		log.Error("Error creating user in the database")
 		return "", 500, result.Error
 	}
 
+	log.Info("User registered successfully")
 	return s, 200, nil
 }
 
 func (a *Authentication) Login(user models.LoginUser) (string, int, error) {
 
+	log.Info("Logging in user")
 	err := godotenv.Load()
 
 	if err != nil {
+		log.Error("Error loading .env file")
 		return "", 500, err
 	}
 
 	err = validate.Struct(&user)
 
 	if err != nil {
+		log.Error("Error validating user")
 		return "", 400, err
 	}
 
 	if user.Username == "" || user.Password == "" {
+		log.WithFields(log.Fields{
+			"username": user.Username,
+			"password": user.Password,
+		}).Error("username and password are required fields")
 		errString := "username and password are required fields"
 		return "", 400, errors.New(errString)
 	}
 
 	// Check if a user with the same username is present in the database
 
-	result := a.DB.Conn.Table("users").First(&models.User{
-		Username: user.Username,
-	})
+	result := a.DB.Conn.Table("users").Where("username = ?", user.Username).First(&models.User{})
 
 	if result.Error != nil {
+		log.WithFields(log.Fields{
+			"username": user.Username,
+		}).Error("error checking if user exists")
 		return "", 500, result.Error
 	}
 
 	// Get user
 
-	password, ok := result.Get("password")
+	userObj := models.User{
+		Username: user.Username,
+	}
 
-	if !ok {
+	row := a.DB.Conn.Table("users").Select("password").Where("username = ?", user.Username).Row()
+	err = row.Scan(&userObj.Password)
+
+	if err != nil {
+		log.Error("Error scanning user")
+		return "", 500, err
+	}
+
+	if row.Err() != nil {
+		log.WithFields(log.Fields{
+			"username": user.Username,
+		}).Error("user does not exist")
 		errString := "user does not exist"
 		return "", 404, errors.New(errString)
 	}
 
-	// convert password from interface{} to string
+	password := userObj.Password
 
-	password, ok = password.(string)
-
-	if !ok {
-		errString := "password is not a string"
+	if len(password) == 0 {
+		log.WithFields(log.Fields{
+			"username": user.Username,
+		}).Error("password field is empty")
+		errString := "password field is empty"
 		return "", 500, errors.New(errString)
 	}
 
-	// extract password field from the result and compare it with the password field of the user
-
-	// if the password does not match then return an error message
-
-	err = bcrypt.CompareHashAndPassword([]byte(password.(string)), []byte(user.Password))
+	err = bcrypt.CompareHashAndPassword([]byte(password), []byte(user.Password))
 
 	if err != nil {
+		log.Error("password does not match")
 		errString := "password does not match"
 		return "", 403, errors.New(errString)
 	}
@@ -185,6 +245,7 @@ func (a *Authentication) Login(user models.LoginUser) (string, int, error) {
 	keyBytes, err := base64.StdEncoding.DecodeString(keyBase64)
 
 	if err != nil {
+		log.Error("Error decoding base64 key")
 		return "", 500, err
 	}
 
@@ -200,19 +261,24 @@ func (a *Authentication) Login(user models.LoginUser) (string, int, error) {
 	s, err = t.SignedString(key)
 
 	if err != nil {
+		log.Error("Error signing jwt token")
 		return "", 500, err
 	}
 
+	log.Info("User logged in successfully")
 	return s, 200, nil
 }
 
 func (a *Authentication) ValidateToken(token string) (bool, int, error) {
+
+	log.Info("Validating token")
 
 	keyBase64 := os.Getenv("JWT_KEY_BASE64")
 
 	keyBytes, err := base64.StdEncoding.DecodeString(keyBase64)
 
 	if err != nil {
+		log.Error("Error decoding base64 key")
 		return false, 500, err
 	}
 
@@ -220,16 +286,19 @@ func (a *Authentication) ValidateToken(token string) (bool, int, error) {
 
 	t, err := jwt.ParseWithClaims(token, jwt.MapClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return key, nil
-	}, jwt.WithAudience("auth-service"), jwt.WithIssuer("auth-service"), jwt.WithSubject("user"), jwt.WithExpirationRequired())
+	}, jwt.WithIssuer("auth-service"), jwt.WithExpirationRequired())
 
 	if err != nil {
+		log.Error("Error parsing jwt token")
 		return false, 403, err
 	}
 
 	if t.Valid {
+		log.Info("Token is valid")
 		return true, 200, nil
 	}
 
+	log.Error("Token is invalid")
 	return false, 403, nil
 }
 
@@ -237,47 +306,60 @@ func (a *Authentication) SendResetPasswordMail(email string) (int, error) {
 
 	// check if the email is valid
 
+	log.Info("Sending reset password mail")
+
 	err := validate.Var(&email, "email")
 
 	if err != nil {
+		log.Error("Error validating email")
 		return 400, err
 	}
 
 	// check if the email is present in the database
 
-	result := a.DB.Conn.Table("users").First(&models.User{
-		Email: email,
-	})
+	result := a.DB.Conn.Table("users").Where("email = ?", email).First(&models.User{})
+
+	if result.Error != nil && result.Error.Error() == `record not found` {
+		log.Info("User does not exist")
+		errString := "user does not exist"
+		return 404, errors.New(errString)
+	}
 
 	if result.Error != nil {
+		log.WithFields(log.Fields{
+			"email": email,
+		}).Error("error checking if user exists")
 		return 500, result.Error
 	}
 
 	// send the user a email with a link to reset the password
 
 	err = helper.SendMail(
-		email,
-		"Reset Password",
-		"Please click on the link to reset your password",
-		"",
-		"reset-password",
-		"Reset Password",
+		email,            // to
+		"Reset Password", // name
+		"Please click on the link to reset your password", // text
+		"",               // html
+		"reset-password", // category
+		"Reset Password", // subject
 	)
 
 	if err != nil {
+		log.Error("Error sending reset password mail")
 		return 500, err
 	}
 
+	log.Info("Reset password mail sent successfully")
 	return 200, nil
 }
 
 func (a *Authentication) ResetPassword(user models.User, newPassword string) (int, error) {
 
 	// validate newPassword string
-
+	log.Info("Resetting password")
 	err := validate.Var(&newPassword, "alphanum")
 
 	if err != nil {
+		log.Error("Error validating new password")
 		return 400, err
 	}
 
@@ -286,6 +368,7 @@ func (a *Authentication) ResetPassword(user models.User, newPassword string) (in
 	hashedPassword, err := helper.HashPassword(newPassword)
 
 	if err != nil {
+		log.Error("Error hashing password")
 		return 500, err
 	}
 
@@ -294,8 +377,10 @@ func (a *Authentication) ResetPassword(user models.User, newPassword string) (in
 	result := a.DB.Conn.Table("users").Where("email = ?", user.Email).Update("password", string(hashedPassword))
 
 	if result.Error != nil {
+		log.Error("Error updating password")
 		return 500, result.Error
 	}
 
+	log.Info("Password reset successfully")
 	return 200, nil
 }
