@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 )
@@ -37,7 +38,9 @@ func TestMail(t *testing.T) {
 			fmt.Println(err)
 			return
 		}
-		req.Header.Add("Authorization", "Bearer 20a403cfe90b0e710efaf014d32fc561")
+
+		tokenString := fmt.Sprintf("Bearer %s", os.Getenv("MAILTRAP_API_KEY"))
+		req.Header.Add("Authorization", tokenString)
 		req.Header.Add("Content-Type", "application/json")
 
 		res, err := client.Do(req)
