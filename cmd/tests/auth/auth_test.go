@@ -52,4 +52,11 @@ func TestAuth(t *testing.T) {
 			t.Errorf("Should throw error when create a user with empty fields: %v", err)
 		}
 	})
+
+	t.Run("Migrate the database", func(t *testing.T) {
+		// Create a new authentication instance
+		db := auth.NewAuthentication(10)
+
+		db.DB.Conn.AutoMigrate(&models.User{})
+	})
 }
