@@ -11,6 +11,7 @@ type User struct {
 }
 
 type LoginUser struct {
-	Username string `json:"username" validate:"required,alphanum"`
+	// Username string `json:"username" validate:"required,alphanum"`
+	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required,alphanum"`
 }

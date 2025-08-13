@@ -178,9 +178,9 @@ func (a *Authentication) Login(user models.LoginUser) (string, int, error) {
 		return "", 400, err
 	}
 
-	if user.Username == "" || user.Password == "" {
+	if user.Email == "" || user.Password == "" {
 		log.WithFields(log.Fields{
-			"username": user.Username,
+			"email":    user.Email,
 			"password": user.Password,
 		}).Error("username and password are required fields")
 		errString := "username and password are required fields"
@@ -189,11 +189,11 @@ func (a *Authentication) Login(user models.LoginUser) (string, int, error) {
 
 	// Check if a user with the same username is present in the database
 
-	result := a.DB.Conn.Table("users").Where("username = ?", user.Username).First(&models.User{})
+	result := a.DB.Conn.Table("users").Where("email = ?", user.Email).First(&models.User{})
 
 	if result.Error != nil {
 		log.WithFields(log.Fields{
-			"username": user.Username,
+			"Email": user.Email,
 		}).Error("error checking if user exists")
 		return "", 500, result.Error
 	}
@@ -201,10 +201,11 @@ func (a *Authentication) Login(user models.LoginUser) (string, int, error) {
 	// Get user
 
 	userObj := models.User{
-		Username: user.Username,
+		// Username: user.Username,
+		Email: user.Email,
 	}
 
-	row := a.DB.Conn.Table("users").Select("password").Where("username = ?", user.Username).Row()
+	row := a.DB.Conn.Table("users").Select("password").Where("Email = ?", user.Email).Row()
 	err = row.Scan(&userObj.Password)
 
 	if err != nil {
@@ -214,7 +215,7 @@ func (a *Authentication) Login(user models.LoginUser) (string, int, error) {
 
 	if row.Err() != nil {
 		log.WithFields(log.Fields{
-			"username": user.Username,
+			"email": user.Email,
 		}).Error("user does not exist")
 		errString := "user does not exist"
 		return "", 404, errors.New(errString)
@@ -224,7 +225,7 @@ func (a *Authentication) Login(user models.LoginUser) (string, int, error) {
 
 	if len(password) == 0 {
 		log.WithFields(log.Fields{
-			"username": user.Username,
+			"Email": user.Email,
 		}).Error("password field is empty")
 		errString := "password field is empty"
 		return "", 500, errors.New(errString)
@@ -252,7 +253,7 @@ func (a *Authentication) Login(user models.LoginUser) (string, int, error) {
 	key = keyBytes
 
 	t = jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub":  user.Username,
+		"sub":  user.Email,
 		"exp":  time.Now().Add(time.Hour * 72).Unix(),
 		"role": "user",
 		"iss":  "auth-service",

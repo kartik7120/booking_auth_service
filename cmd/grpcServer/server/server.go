@@ -32,14 +32,12 @@ func (a *AuthService) Resigter(ctx context.Context, in *au.User) (*au.Response, 
 	}
 
 	user := models.User{
-		Username: in.Username,
 		Email:    in.Email,
 		Password: in.Password,
 	}
 
 	log.WithFields(log.Fields{
-		"Username": user.Username,
-		"Email":    user.Email,
+		"Email": user.Email,
 	}).Info("Calling register function")
 
 	token, status, err := a.Authentication.Register(user)
@@ -89,8 +87,8 @@ func (a *AuthService) Login(ctx context.Context, in *au.LoginUser) (*au.Response
 	}
 
 	user := models.LoginUser{
-		Username: in.Username,
 		Password: in.Password,
+		Email:    in.Email,
 	}
 
 	token, status, err := a.Authentication.Login(user)
