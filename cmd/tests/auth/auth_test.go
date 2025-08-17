@@ -6,6 +6,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/kartik7120/booking_auth_service/cmd/auth"
+	"github.com/kartik7120/booking_auth_service/cmd/helper"
 	"github.com/kartik7120/booking_auth_service/cmd/models"
 )
 
@@ -40,7 +41,6 @@ func TestAuth(t *testing.T) {
 
 		// Create a new user
 		user := models.User{
-			Username: "Naomi Green",
 			Email:    "Emerald34@hotmail.com",
 			Password: "XgvnSXkx1t5gsCe",
 		}
@@ -55,8 +55,17 @@ func TestAuth(t *testing.T) {
 
 	t.Run("Migrate the database", func(t *testing.T) {
 		// Create a new authentication instance
-		db := auth.NewAuthentication(10)
+		app := auth.NewAuthentication(10)
 
-		db.DB.Conn.AutoMigrate(&models.User{})
+		conn, err := helper.ConnectToDB()
+
+		if err != nil {
+			t.Errorf("Error connecting to database: %v", err)
+			return
+		}
+
+		app.DB.Conn = conn
+
+		app.DB.Conn.AutoMigrate(&models.User{})
 	})
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/kartik7120/booking_auth_service/cmd/models"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 type Authentication struct {
@@ -37,6 +38,21 @@ func NewAuthentication(timeout time.Duration) *Authentication {
 	}
 }
 
+func (a *Authentication) CheckUserExists(email string) (bool, int, error) {
+	var user models.User
+
+	err := a.DB.Conn.Model(models.User{}).Where("email = ?", email).First(&user).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, 200, nil
+		}
+		return false, 500, err
+	}
+
+	return true, 200, nil
+}
+
 func (a *Authentication) Register(user models.User) (string, int, error) {
 
 	log.Info("Registering user")
@@ -49,7 +65,6 @@ func (a *Authentication) Register(user models.User) (string, int, error) {
 	}
 
 	u := &models.User{
-		Username: user.Username,
 		Email:    user.Email,
 		Password: user.Password,
 	}
@@ -61,9 +76,8 @@ func (a *Authentication) Register(user models.User) (string, int, error) {
 		return "", 400, err
 	}
 
-	if user.Username == "" || user.Email == "" || user.Password == "" {
+	if user.Email == "" || user.Password == "" {
 		log.WithFields(log.Fields{
-			"username": user.Username,
 			"email":    user.Email,
 			"password": user.Password,
 		}).Error("username, email and password are required fields")
@@ -74,7 +88,7 @@ func (a *Authentication) Register(user models.User) (string, int, error) {
 	// Check if a user with the same username is present in the database
 
 	result := a.DB.Conn.Table("users").First(&models.User{
-		Username: user.Username,
+		Email: user.Email,
 	})
 
 	if result.Error.Error() == `ERROR: relation "users" does not exist (SQLSTATE 42P01)` {
@@ -90,7 +104,7 @@ func (a *Authentication) Register(user models.User) (string, int, error) {
 		log.Info("No user with the same username found")
 	} else {
 		log.WithFields(log.Fields{
-			"username": user.Username,
+			"email": user.Email,
 		}).Error("error checking if user exists")
 
 		return "", 500,
@@ -98,13 +112,13 @@ func (a *Authentication) Register(user models.User) (string, int, error) {
 	}
 
 	// extract columns from the result
-	_, ok := result.Get("username")
+	_, ok := result.Get("email")
 
 	if ok {
 		log.WithFields(log.Fields{
-			"username": user.Username,
-		}).Error("user with the same username already exists")
-		errString := "user with the same username already exists"
+			"email": user.Email,
+		}).Error("user with the same email already exists")
+		errString := "user with the same email already exists"
 		return "", 403, errors.New(errString)
 	}
 
@@ -121,7 +135,7 @@ func (a *Authentication) Register(user models.User) (string, int, error) {
 	key = keyBytes
 
 	t = jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub":  user.Username,
+		"sub":  user.Email,
 		"exp":  time.Now().Add(time.Hour * 72).Unix(),
 		"role": "user",
 		"iss":  "auth-service",
@@ -146,7 +160,6 @@ func (a *Authentication) Register(user models.User) (string, int, error) {
 	// Add user to the database
 
 	result = a.DB.Conn.Table("users").Create(&models.User{
-		Username: user.Username,
 		Email:    user.Email,
 		Password: string(hashedPassword),
 		Role:     "USER",
@@ -365,8 +378,7 @@ func (a *Authentication) ResetPassword(user models.User, newPassword string) (in
 	}
 
 	result := a.DB.Conn.Table("users").Where(&models.User{
-		Username: user.Username,
-		Email:    user.Email,
+		Email: user.Email,
 	}).First(&models.User{})
 
 	if result.Error != nil && result.Error.Error() == `record not found` {

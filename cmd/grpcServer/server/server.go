@@ -16,6 +16,21 @@ type AuthService struct {
 	Authentication *auth.Authentication
 }
 
+func (a *AuthService) CheckUserExists(ctx context.Context, in *au.CheckUserExistsRequest) (*au.CheckUserExistsResponse, error) {
+
+	exists, status, err := a.Authentication.CheckUserExists(in.Email)
+
+	if err != nil || status != 200 {
+		return &au.CheckUserExistsResponse{
+			Exists: false,
+		}, nil
+	}
+
+	return &au.CheckUserExistsResponse{
+		Exists: exists,
+	}, nil
+}
+
 func (a *AuthService) Resigter(ctx context.Context, in *au.User) (*au.Response, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -244,8 +259,7 @@ func (a *AuthService) ResetPassword(ctx context.Context, in *au.ResetPasswordReq
 	}
 
 	user := models.User{
-		Email:    in.User.Email,
-		Username: in.User.Username,
+		Email: in.User.Email,
 	}
 
 	status, err := a.Authentication.ResetPassword(user, in.NewPassword)
