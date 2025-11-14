@@ -7,4 +7,6 @@ COPY .env /app/.env
 
 COPY authApp /app/authApp
 
+RUN chmod +x authApp
+
 CMD [ "./authApp" ]
